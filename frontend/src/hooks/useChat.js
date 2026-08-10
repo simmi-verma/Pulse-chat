@@ -12,6 +12,12 @@ export function useChat(currentUser) {
   const [toast, setToast] = useState(null);
 
   const typingTimeoutRef = useRef(null);
+  const activeRoomRef = useRef(activeRoom);
+
+  // Keep activeRoomRef synced
+  useEffect(() => {
+    activeRoomRef.current = activeRoom;
+  }, [activeRoom]);
 
   // Trigger toast alert
   const showToast = useCallback((message, type = 'info') => {
@@ -22,7 +28,7 @@ export function useChat(currentUser) {
   }, []);
 
   // Fetch chat history for specified room via REST API
-  const loadHistory = useCallback(async (roomToLoad = activeRoom) => {
+  const loadHistory = useCallback(async (roomToLoad) => {
     try {
       setIsLoadingHistory(true);
       const res = await fetchChatHistory(roomToLoad);
@@ -35,10 +41,14 @@ export function useChat(currentUser) {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [activeRoom, showToast]);
+  }, [showToast]);
 
+  // Load history whenever activeRoom changes
   useEffect(() => {
     loadHistory(activeRoom);
+    if (socket.connected) {
+      socket.emit('join_room', activeRoom);
+    }
   }, [activeRoom, loadHistory]);
 
   const switchRoom = (roomName) => {
@@ -49,7 +59,7 @@ export function useChat(currentUser) {
     }
   };
 
-  // Connect and bind socket listeners
+  // Connect and bind socket listeners (Persistent connection, doesn't reconnect on room change)
   useEffect(() => {
     if (!currentUser || !currentUser.username) return;
 
@@ -61,7 +71,7 @@ export function useChat(currentUser) {
         username: currentUser.username,
         avatar: currentUser.avatar
       });
-      socket.emit('join_room', activeRoom);
+      socket.emit('join_room', activeRoomRef.current);
     };
 
     const onDisconnect = (reason) => {
@@ -70,9 +80,9 @@ export function useChat(currentUser) {
     };
 
     const onReceiveMessage = (newMessage) => {
-      // Only append if message belongs to active room or default
+      // Append if message belongs to current active room
       const msgRoom = newMessage.room || 'general-lounge';
-      if (msgRoom === activeRoom) {
+      if (msgRoom === activeRoomRef.current) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === newMessage.id)) return prev;
           return [...prev, newMessage];
@@ -124,9 +134,8 @@ export function useChat(currentUser) {
       socket.off('user_typing', onUserTyping);
       socket.off('user_stop_typing', onUserStopTyping);
       socket.off('messages_read', onMessagesRead);
-      disconnectSocket();
     };
-  }, [currentUser, activeRoom, showToast]);
+  }, [currentUser?.username, showToast]);
 
   // Send message function (Uses Socket.io, fallback to REST API)
   const sendMessage = async (text) => {
@@ -136,13 +145,13 @@ export function useChat(currentUser) {
       sender: currentUser.username,
       sender_avatar: currentUser.avatar,
       text: text.trim(),
-      room: activeRoom
+      room: activeRoomRef.current
     };
 
     if (socket.connected) {
       socket.emit('send_message', payload);
     } else {
-      // Fallback REST API
+      // Fallback REST API if socket is disconnected
       try {
         const response = await sendApiMessage(payload);
         if (response && response.success) {
@@ -183,6 +192,6 @@ export function useChat(currentUser) {
     sendMessage,
     sendTypingNotification,
     markAllAsRead,
-    refreshHistory: () => loadHistory(activeRoom)
+    refreshHistory: () => loadHistory(activeRoomRef.current)
   };
 }

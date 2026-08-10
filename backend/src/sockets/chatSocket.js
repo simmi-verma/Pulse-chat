@@ -61,8 +61,7 @@ function initChatSocket(io) {
           room
         });
 
-        // Broadcast to clients in this room and fallback to all connected clients
-        io.to(room).emit('receive_message', savedMessage);
+        // Broadcast to all connected clients instantly
         io.emit('receive_message', savedMessage);
       } catch (err) {
         console.error('[Socket.io] Error processing message:', err);
