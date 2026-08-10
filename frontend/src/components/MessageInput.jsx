@@ -8,17 +8,24 @@ export default function MessageInput({ onSendMessage, onTyping }) {
   const [showEmojis, setShowEmojis] = useState(false);
 
   const handleSubmit = (e) => {
-    e?.preventDefault();
-    if (!text || text.trim() === '') return;
-    onSendMessage(text);
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    // Immediately clear input state to prevent duplicate submissions
     setText('');
     setShowEmojis(false);
+
+    onSendMessage(trimmed);
   };
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      handleSubmit(e);
     } else {
       onTyping();
     }

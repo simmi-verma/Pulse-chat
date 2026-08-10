@@ -40,6 +40,20 @@ async function getDatabase() {
     // Column already exists
   }
 
+  // Purge duplicate rows if any exist from rapid re-submits
+  try {
+    await db.exec(`
+      DELETE FROM messages
+      WHERE rowid NOT IN (
+        SELECT MIN(rowid)
+        FROM messages
+        GROUP BY sender, text, room, timestamp
+      )
+    `);
+  } catch (e) {
+    console.error('Error cleaning duplicate messages:', e);
+  }
+
   // Seed sample messages if table is empty
   const count = await db.get('SELECT COUNT(*) as count FROM messages');
   if (count.count === 0) {

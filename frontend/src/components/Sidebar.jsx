@@ -56,10 +56,10 @@ export default function Sidebar({ onlineUsers, currentUser, isOpen, messageCount
           marginBottom: '4px'
         }}>
           <Hash size={18} color="var(--accent-primary)" />
-          <span>{activeRoom}</span>
+          <span>{activeRoom || 'general-lounge'}</span>
         </div>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          {activeRoom.startsWith('dm-') ? 'Direct 1-on-1 Chat' : 'Public real-time room'}
+          {(activeRoom || 'general-lounge').startsWith('dm-') ? 'Direct 1-on-1 Chat' : 'Public real-time room'}
         </p>
       </div>
 

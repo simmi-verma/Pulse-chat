@@ -1,6 +1,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { socket, connectSocket, disconnectSocket } from '../services/socket';
+import { socket, connectSocket } from '../services/socket';
 import { fetchChatHistory, sendApiMessage } from '../services/api';
+
+// Helper to deduplicate array of messages
+function deduplicateMessages(msgArray) {
+  if (!Array.isArray(msgArray)) return [];
+  const seenIds = new Set();
+  const seenKeys = new Set();
+  const result = [];
+
+  for (const msg of msgArray) {
+    if (!msg || !msg.id) continue;
+    const contentKey = `${msg.sender}_${msg.text}_${msg.room || 'general-lounge'}_${Math.floor(new Date(msg.timestamp).getTime() / 4000)}`;
+
+    if (!seenIds.has(msg.id) && !seenKeys.has(contentKey)) {
+      seenIds.add(msg.id);
+      seenKeys.add(contentKey);
+      result.push(msg);
+    }
+  }
+
+  return result;
+}
 
 export function useChat(currentUser) {
   const [activeRoom, setActiveRoom] = useState('general-lounge');
@@ -33,7 +54,7 @@ export function useChat(currentUser) {
       setIsLoadingHistory(true);
       const res = await fetchChatHistory(roomToLoad);
       if (res && res.success) {
-        setMessages(res.data || []);
+        setMessages(deduplicateMessages(res.data || []));
       }
     } catch (err) {
       console.error('Failed to load chat history:', err);
@@ -59,7 +80,7 @@ export function useChat(currentUser) {
     }
   };
 
-  // Connect and bind socket listeners (Persistent connection, doesn't reconnect on room change)
+  // Connect and bind socket listeners (Persistent connection)
   useEffect(() => {
     if (!currentUser || !currentUser.username) return;
 
@@ -80,13 +101,10 @@ export function useChat(currentUser) {
     };
 
     const onReceiveMessage = (newMessage) => {
-      // Append if message belongs to current active room
+      if (!newMessage) return;
       const msgRoom = newMessage.room || 'general-lounge';
       if (msgRoom === activeRoomRef.current) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === newMessage.id)) return prev;
-          return [...prev, newMessage];
-        });
+        setMessages((prev) => deduplicateMessages([...prev, newMessage]));
       }
     };
 
@@ -155,7 +173,7 @@ export function useChat(currentUser) {
       try {
         const response = await sendApiMessage(payload);
         if (response && response.success) {
-          setMessages((prev) => [...prev, response.data]);
+          setMessages((prev) => deduplicateMessages([...prev, response.data]));
         }
       } catch (err) {
         showToast('Failed to send message over HTTP fallback', 'error');
