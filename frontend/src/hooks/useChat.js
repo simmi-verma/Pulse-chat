@@ -3,6 +3,7 @@ import { socket, connectSocket, disconnectSocket } from '../services/socket';
 import { fetchChatHistory, sendApiMessage } from '../services/api';
 
 export function useChat(currentUser) {
+  const [activeRoom, setActiveRoom] = useState('general-lounge');
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
@@ -20,25 +21,33 @@ export function useChat(currentUser) {
     }, 4000);
   }, []);
 
-  // Fetch initial chat history via REST API
-  const loadHistory = useCallback(async () => {
+  // Fetch chat history for specified room via REST API
+  const loadHistory = useCallback(async (roomToLoad = activeRoom) => {
     try {
       setIsLoadingHistory(true);
-      const res = await fetchChatHistory();
+      const res = await fetchChatHistory(roomToLoad);
       if (res && res.success) {
         setMessages(res.data || []);
       }
     } catch (err) {
       console.error('Failed to load chat history:', err);
-      showToast('Could not fetch message history. Backend might be unreachable.', 'error');
+      showToast('Could not fetch message history.', 'error');
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [showToast]);
+  }, [activeRoom, showToast]);
 
   useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    loadHistory(activeRoom);
+  }, [activeRoom, loadHistory]);
+
+  const switchRoom = (roomName) => {
+    if (!roomName || roomName === activeRoom) return;
+    setActiveRoom(roomName);
+    if (socket.connected) {
+      socket.emit('join_room', roomName);
+    }
+  };
 
   // Connect and bind socket listeners
   useEffect(() => {
@@ -52,6 +61,7 @@ export function useChat(currentUser) {
         username: currentUser.username,
         avatar: currentUser.avatar
       });
+      socket.emit('join_room', activeRoom);
     };
 
     const onDisconnect = (reason) => {
@@ -60,11 +70,14 @@ export function useChat(currentUser) {
     };
 
     const onReceiveMessage = (newMessage) => {
-      setMessages((prev) => {
-        // Prevent duplicates
-        if (prev.some((m) => m.id === newMessage.id)) return prev;
-        return [...prev, newMessage];
-      });
+      // Only append if message belongs to active room or default
+      const msgRoom = newMessage.room || 'general-lounge';
+      if (msgRoom === activeRoom) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMessage.id)) return prev;
+          return [...prev, newMessage];
+        });
+      }
     };
 
     const onOnlineUsers = (users) => {
@@ -113,7 +126,7 @@ export function useChat(currentUser) {
       socket.off('messages_read', onMessagesRead);
       disconnectSocket();
     };
-  }, [currentUser, showToast]);
+  }, [currentUser, activeRoom, showToast]);
 
   // Send message function (Uses Socket.io, fallback to REST API)
   const sendMessage = async (text) => {
@@ -122,7 +135,8 @@ export function useChat(currentUser) {
     const payload = {
       sender: currentUser.username,
       sender_avatar: currentUser.avatar,
-      text: text.trim()
+      text: text.trim(),
+      room: activeRoom
     };
 
     if (socket.connected) {
@@ -158,15 +172,17 @@ export function useChat(currentUser) {
   };
 
   return {
+    activeRoom,
     messages,
     onlineUsers,
     typingUsers,
     isConnected,
     isLoadingHistory,
     toast,
+    switchRoom,
     sendMessage,
     sendTypingNotification,
     markAllAsRead,
-    refreshHistory: loadHistory
+    refreshHistory: () => loadHistory(activeRoom)
   };
 }

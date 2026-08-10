@@ -34,26 +34,35 @@ function initChatSocket(io) {
       });
     });
 
+    // Handle joining chat room channel
+    socket.on('join_room', (roomName) => {
+      if (!roomName) return;
+      socket.join(roomName);
+      console.log(`[Socket.io] Socket ${socket.id} joined room: ${roomName}`);
+    });
+
     // Handle incoming real-time message
     socket.on('send_message', async (data) => {
       try {
-        const { sender, sender_avatar, text } = data;
+        const { sender, sender_avatar, text, room = 'general-lounge' } = data;
         if (!sender || !text || text.trim() === '') return;
 
         const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
         const timestamp = new Date().toISOString();
 
-        // Persist message in SQLite database
+        // Persist message in SQLite database with room tag
         const savedMessage = await createMessage({
           id: messageId,
           sender,
           sender_avatar: sender_avatar || '👤',
           text: text.trim(),
           timestamp,
-          read_status: 0
+          read_status: 0,
+          room
         });
 
-        // Broadcast to ALL connected clients instantly
+        // Broadcast to clients in this room and fallback to all connected clients
+        io.to(room).emit('receive_message', savedMessage);
         io.emit('receive_message', savedMessage);
       } catch (err) {
         console.error('[Socket.io] Error processing message:', err);

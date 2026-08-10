@@ -1,18 +1,18 @@
 const { getDatabase } = require('../config/database');
 
-async function getAllMessages() {
+async function getAllMessages(room = 'general-lounge') {
   const db = await getDatabase();
-  return db.all('SELECT * FROM messages ORDER BY timestamp ASC');
+  return db.all('SELECT * FROM messages WHERE room = ? OR room IS NULL ORDER BY timestamp ASC', [room]);
 }
 
-async function createMessage({ id, sender, sender_avatar, text, timestamp, read_status = 0 }) {
+async function createMessage({ id, sender, sender_avatar, text, timestamp, read_status = 0, room = 'general-lounge' }) {
   const db = await getDatabase();
   const messageTime = timestamp || new Date().toISOString();
   await db.run(
-    `INSERT INTO messages (id, sender, sender_avatar, text, timestamp, read_status) VALUES (?, ?, ?, ?, ?, ?)`,
-    [id, sender, sender_avatar || '👤', text, messageTime, read_status]
+    `INSERT INTO messages (id, sender, sender_avatar, text, timestamp, read_status, room) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, sender, sender_avatar || '👤', text, messageTime, read_status, room]
   );
-  return { id, sender, sender_avatar: sender_avatar || '👤', text, timestamp: messageTime, read_status };
+  return { id, sender, sender_avatar: sender_avatar || '👤', text, timestamp: messageTime, read_status, room };
 }
 
 async function markMessagesAsRead() {

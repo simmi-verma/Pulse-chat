@@ -38,12 +38,14 @@ export default function App() {
 
   // Custom Chat Hook
   const {
+    activeRoom,
     messages,
     onlineUsers,
     typingUsers,
     isConnected,
     isLoadingHistory,
     toast,
+    switchRoom,
     sendMessage,
     sendTypingNotification,
     refreshHistory
@@ -81,6 +83,8 @@ export default function App() {
           currentUser={currentUser}
           isOpen={sidebarOpen}
           messageCount={messages.length}
+          activeRoom={activeRoom}
+          onSwitchRoom={switchRoom}
         />
 
         {/* Chat Window */}

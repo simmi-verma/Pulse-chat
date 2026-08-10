@@ -21,7 +21,8 @@ async function getDatabase() {
       sender_avatar TEXT,
       text TEXT NOT NULL,
       timestamp TEXT NOT NULL,
-      read_status INTEGER DEFAULT 0
+      read_status INTEGER DEFAULT 0,
+      room TEXT DEFAULT 'general-lounge'
     );
 
     CREATE TABLE IF NOT EXISTS users (
@@ -32,6 +33,12 @@ async function getDatabase() {
       last_seen TEXT
     );
   `);
+
+  try {
+    await db.exec(`ALTER TABLE messages ADD COLUMN room TEXT DEFAULT 'general-lounge'`);
+  } catch (e) {
+    // Column already exists
+  }
 
   // Seed sample messages if table is empty
   const count = await db.get('SELECT COUNT(*) as count FROM messages');

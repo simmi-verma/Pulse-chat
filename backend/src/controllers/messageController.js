@@ -3,7 +3,8 @@ const { getAllMessages, createMessage, markMessagesAsRead } = require('../models
 // Fetch chat history
 async function getMessages(req, res) {
   try {
-    const messages = await getAllMessages();
+    const room = req.query.room || 'general-lounge';
+    const messages = await getAllMessages(room);
     res.status(200).json({
       success: true,
       count: messages.length,
@@ -22,7 +23,7 @@ async function getMessages(req, res) {
 // Send message via REST API
 async function postMessage(req, res) {
   try {
-    const { sender, sender_avatar, text } = req.body;
+    const { sender, sender_avatar, text, room = 'general-lounge' } = req.body;
 
     if (!sender || !text || text.trim() === '') {
       return res.status(400).json({
@@ -40,12 +41,14 @@ async function postMessage(req, res) {
       sender_avatar: sender_avatar || '👤',
       text: text.trim(),
       timestamp,
-      read_status: 0
+      read_status: 0,
+      room
     });
 
     // Broadcast message via Socket.io if io instance attached to request
     if (req.io) {
-      req.io.emit('receive_message', newMessage);
+      req.io.to(room).emit('receive_message', newMessage);
+      req.io.emit('receive_message', newMessage); // Fallback broadcast
     }
 
     res.status(201).json({

@@ -10,9 +10,9 @@ const api = axios.create({
   timeout: 10000
 });
 
-export const fetchChatHistory = async () => {
+export const fetchChatHistory = async (room = 'general-lounge') => {
   try {
-    const response = await api.get('/messages');
+    const response = await api.get('/messages', { params: { room } });
     return response.data;
   } catch (error) {
     console.error('API Error fetching chat history:', error);
